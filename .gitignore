@@ -10,4 +10,5 @@ test-results/
 coverage/
 *.log
 *.tsbuildinfo
+next-env.d.ts
 .DS_Store

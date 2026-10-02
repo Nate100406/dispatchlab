@@ -1,0 +1,45 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "dispatchlab",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "../dashboard/out",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
+  },
+  "vars": { "MODE": "hosted", "DEMO_PAUSED": "false" },
+  "services": [{ "binding": "RECEIVER", "service": "dispatchlab-receiver" }],
+  "queues": {
+    "producers": [
+      { "binding": "DELIVERY_QUEUE", "queue": "dispatchlab-deliveries" },
+    ],
+    "consumers": [
+      {
+        "queue": "dispatchlab-deliveries",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 3,
+        "retry_delay": 5,
+        "max_concurrency": 2,
+      },
+    ],
+  },
+  "triggers": { "crons": ["*/30 * * * *"] },
+  "ratelimits": [
+    {
+      "name": "MUTATION_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 10, "period": 60 },
+    },
+    {
+      "name": "READ_LIMITER",
+      "namespace_id": "1002",
+      "simple": { "limit": 60, "period": 60 },
+    },
+  ],
+  "observability": { "enabled": true },
+}

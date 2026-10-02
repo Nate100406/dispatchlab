@@ -1,0 +1,39 @@
+name: Deploy configured demo
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: hosted-demo
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Require successful CI for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          result=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" --json conclusion,status --jq '[.[] | select(.status == "completed" and .conclusion == "success")] | length')
+          test "$result" -gt 0
+      - run: npm ci
+      - run: npm run build
+      - name: Apply forward migrations
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+      - name: Deploy receiver, then dashboard/API/consumer
+        run: |
+          npx wrangler deploy -c apps/receiver/wrangler.jsonc
+          npx wrangler deploy -c apps/worker/wrangler.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: "false"

@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: dispatchlab_owner
+      POSTGRES_PASSWORD: local-only-owner
+      POSTGRES_DB: dispatchlab
+    ports: ["127.0.0.1:55439:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dispatchlab_owner -d dispatchlab"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+volumes:
+  postgres-data:

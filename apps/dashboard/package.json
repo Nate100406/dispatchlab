@@ -9,10 +9,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@dispatchlab/core": "1.0.0",
+    "geist": "^1.7.2",
     "next": "16.3.8",
     "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "@dispatchlab/core": "1.0.0"
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@types/react": "19.3.0",

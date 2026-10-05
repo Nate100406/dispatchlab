@@ -1,9 +1,11 @@
 import Link from "next/link";
 export default function NotFound() {
   return (
-    <section className="page">
+    <section className="page state-page">
       <h1>Page not found.</h1>
-      <Link href="/">Return to the demo →</Link>
+      <Link className="secondary" href="/">
+        Return to the demo →
+      </Link>
     </section>
   );
 }

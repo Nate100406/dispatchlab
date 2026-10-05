@@ -11,6 +11,7 @@ import {
 import { api, ApiError, detailLink, startSession } from "./api";
 import Status from "./status";
 import { repository, scenarios, scenarioLabel } from "./copy";
+import { Button, HistorySkeleton, JsonCode } from "./ui";
 export default function Lab() {
   const router = useRouter();
   const [sample, setSample] = useState<keyof typeof samples>("order");
@@ -20,12 +21,15 @@ export default function Lab() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [listError, setListError] = useState("");
+  const [loadingList, setLoadingList] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [filter, setFilter] = useState("");
   const [cursor, setCursor] = useState<string | null>(null);
   const pending = useRef<{ body: string; key: string } | null>(null);
   useEffect(() => {
     let cancelled = false;
+    setLoadingList(true);
     api<{ deliveries: Delivery[]; nextCursor: string | null }>(
       `/deliveries${filter ? `?status=${filter}` : ""}`,
     )
@@ -41,6 +45,9 @@ export default function Lab() {
           if (e instanceof ApiError && e.status === 401) setDeliveries([]);
           else setListError(e.message);
         }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingList(false);
       });
     return () => {
       cancelled = true;
@@ -73,7 +80,8 @@ export default function Lab() {
     }
   }
   async function more() {
-    if (!cursor) return;
+    if (!cursor || loadingMore || loadingList) return;
+    setLoadingMore(true);
     try {
       const data = await api<{
         deliveries: Delivery[];
@@ -85,6 +93,8 @@ export default function Lab() {
       setCursor(data.nextCursor);
     } catch (e) {
       setListError((e as Error).message);
+    } finally {
+      setLoadingMore(false);
     }
   }
   return (
@@ -217,10 +227,10 @@ export default function Lab() {
               {error}
             </p>
           )}
-          <button type="submit" className="primary" disabled={busy}>
+          <Button type="submit" className="primary" busy={busy}>
             {busy ? "Saving event…" : "Send event"}
             <span>↗</span>
-          </button>
+          </Button>
           <p className="fine-print">
             No account needed. Up to 10 deliveries per session. Demo data is
             kept for 24 hours. All receiving services are controlled test
@@ -232,23 +242,19 @@ export default function Lab() {
             <span>EVENT DATA</span>
             <span className="code-tag">application/json</span>
           </div>
-          <pre>
-            {JSON.stringify(
-              {
-                eventType: samples[sample].type,
-                payload: samples[sample].payload,
-              },
-              null,
-              2,
-            )}
-          </pre>
+          <JsonCode
+            value={{
+              eventType: samples[sample].type,
+              payload: samples[sample].payload,
+            }}
+          />
           <div className="code-foot">
             <span className="dot" /> This is the sample data DispatchLab will
             save and send.
           </div>
         </div>
       </section>
-      <section className="delivery-list">
+      <section className="delivery-list" aria-busy={loadingList || loadingMore}>
         <div className="section-heading">
           <div>
             <p className="eyebrow">02 / ACTIVITY</p>
@@ -275,7 +281,9 @@ export default function Lab() {
             {listError}
           </p>
         )}
-        {deliveries.length ? (
+        {loadingList ? (
+          <HistorySkeleton />
+        ) : deliveries.length ? (
           <div className="table-wrap">
             <table>
               <thead>
@@ -320,10 +328,10 @@ export default function Lab() {
             </p>
           </div>
         )}
-        {cursor && (
-          <button className="secondary" onClick={more}>
+        {cursor && !loadingList && (
+          <Button className="secondary" onClick={more} busy={loadingMore}>
             Load more deliveries
-          </button>
+          </Button>
         )}
       </section>
       <section id="how-it-works" className="principles">

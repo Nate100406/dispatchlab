@@ -6,11 +6,14 @@ import { terminal, type Accepted, type Detail } from "@dispatchlab/core";
 import { api, detailLink } from "./api";
 import Status from "./status";
 import { attemptExplanation, scenarioLabel, stoppedExplanation } from "./copy";
+import { Button, JsonCode } from "./ui";
 export default function DeliveryView() {
   const id = useSearchParams().get("id");
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [replayAction, setReplayAction] = useState<boolean | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [paused, setPaused] = useState(false);
   const [now, setNow] = useState(Date.now());
   const replayRequest = useRef<{
@@ -23,30 +26,41 @@ export default function DeliveryView() {
     null,
   );
   const polling = !!detail && !terminal(detail.delivery.state);
-  const refresh = useCallback(async () => {
-    if (!id || inFlight.current?.id === id) return;
-    inFlight.current?.controller.abort();
-    const request = { id, controller: new AbortController() };
-    inFlight.current = request;
-    try {
-      const data = await api<Detail>(`/deliveries/${encodeURIComponent(id)}`, {
-        signal: request.controller.signal,
-      });
-      if (!request.controller.signal.aborted) {
-        setDetail(data);
-        setError("");
+  const refresh = useCallback(
+    async (showProgress = false) => {
+      if (!id || inFlight.current?.id === id) return;
+      inFlight.current?.controller.abort();
+      const request = { id, controller: new AbortController() };
+      inFlight.current = request;
+      if (showProgress) setRefreshing(true);
+      try {
+        const data = await api<Detail>(
+          `/deliveries/${encodeURIComponent(id)}`,
+          {
+            signal: request.controller.signal,
+          },
+        );
+        if (!request.controller.signal.aborted) {
+          setDetail(data);
+          setError("");
+        }
+      } catch (e) {
+        if (!request.controller.signal.aborted) setError((e as Error).message);
+      } finally {
+        if (inFlight.current === request) {
+          inFlight.current = null;
+          setRefreshing(false);
+        }
       }
-    } catch (e) {
-      if (!request.controller.signal.aborted) setError((e as Error).message);
-    } finally {
-      if (inFlight.current === request) inFlight.current = null;
-    }
-  }, [id]);
+    },
+    [id],
+  );
   useEffect(() => {
     pollStart.current = Date.now();
     setDetail(null);
     setError("");
     setPaused(false);
+    setRefreshing(false);
     void refresh();
     return () => {
       inFlight.current?.controller.abort();
@@ -75,6 +89,7 @@ export default function DeliveryView() {
   async function replay(recover: boolean) {
     if (!id) return;
     setBusy(true);
+    setReplayAction(recover);
     setError("");
     if (
       replayRequest.current?.source !== id ||
@@ -96,9 +111,11 @@ export default function DeliveryView() {
   }
   if (!id)
     return (
-      <div className="page">
+      <div className="page state-page">
         <h1>Choose a delivery.</h1>
-        <Link href="/">Return to the lab →</Link>
+        <Link className="secondary" href="/">
+          Return to the lab →
+        </Link>
       </div>
     );
   return (
@@ -124,9 +141,13 @@ export default function DeliveryView() {
           {error
             ? "Delivery data is unavailable."
             : "Loading the delivery timeline…"}
-          <button className="secondary" onClick={refresh}>
+          <Button
+            className="secondary"
+            onClick={() => void refresh(true)}
+            busy={refreshing}
+          >
             Refresh
-          </button>
+          </Button>
         </div>
       ) : (
         <>
@@ -163,9 +184,13 @@ export default function DeliveryView() {
             <section className="panel timeline">
               <div className="timeline-heading">
                 <h2>Attempt timeline</h2>
-                <button className="small-button" onClick={refresh}>
+                <Button
+                  className="small-button"
+                  onClick={() => void refresh(true)}
+                  busy={refreshing}
+                >
                   Refresh
-                </button>
+                </Button>
               </div>
               <div className="timeline-origin">
                 <span className="timeline-dot" />
@@ -265,7 +290,7 @@ export default function DeliveryView() {
                   <span>SAVED EVENT DATA</span>
                   <span className="code-tag">JSON</span>
                 </div>
-                <pre>{JSON.stringify(detail.event.payload, null, 2)}</pre>
+                <JsonCode value={detail.event.payload} />
                 <div className="code-foot">
                   <span className="dot" /> Retries and replays use the same
                   event data.
@@ -279,21 +304,25 @@ export default function DeliveryView() {
                   history intact. Repeat the scenario or use a working receiver
                   that accepts the first attempt.
                 </p>
-                <button
+                <Button
                   className="primary"
                   disabled={busy || !terminal(detail.delivery.state)}
+                  busy={busy && replayAction === true}
                   onClick={() => replay(true)}
                 >
-                  {busy ? "Starting replay…" : "Replay with a working receiver"}{" "}
+                  {busy && replayAction === true
+                    ? "Starting replay…"
+                    : "Replay with a working receiver"}{" "}
                   <span>↗</span>
-                </button>
-                <button
+                </Button>
+                <Button
                   className="secondary"
                   disabled={busy || !terminal(detail.delivery.state)}
+                  busy={busy && replayAction === false}
                   onClick={() => replay(false)}
                 >
                   Repeat this scenario
-                </button>
+                </Button>
                 <p className="fine-print">
                   {terminal(detail.delivery.state)
                     ? "Up to 2 replays per event. A service may receive the same event more than once."

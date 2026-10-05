@@ -6,7 +6,7 @@ A small webhook delivery and replay system built to make failure visible.
 
 Imagine an online shop notifying a shipping service that an order was placed. If the shipping service is offline, DispatchLab saves the notification, retries it, and shows every result. The demo uses fictional receivers to make those outages repeatable.
 
-**Reviewing the project?** Follow the [five-minute walkthrough and engineering evidence](docs/reviewer-walkthrough.md).
+Explore the delivery flow and its guarantees in the [five-minute walkthrough](docs/reviewer-walkthrough.md).
 
 ![DispatchLab dashboard](docs/dashboard.png)
 

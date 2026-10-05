@@ -5,6 +5,7 @@ import Link from "next/link";
 import { terminal, type Accepted, type Detail } from "@dispatchlab/core";
 import { api, detailLink } from "./api";
 import Status from "./status";
+import { attemptExplanation, scenarioLabel, stoppedExplanation } from "./copy";
 export default function DeliveryView() {
   const id = useSearchParams().get("id");
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -107,9 +108,9 @@ export default function DeliveryView() {
       </Link>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">DELIVERY INSPECTOR</p>
-          <h1 className="detail-title">Follow the attempt.</h1>
-          <p className="mono muted delivery-id">{id}</p>
+          <p className="eyebrow">SEE WHAT HAPPENED</p>
+          <h1 className="detail-title">Delivery results</h1>
+          <p className="mono muted delivery-id">Delivery ID: {id}</p>
         </div>
         {detail && <Status state={detail.delivery.state} />}
       </div>
@@ -131,8 +132,8 @@ export default function DeliveryView() {
         <>
           <div className="delivery-summary">
             <div>
-              <span>RECEIVER</span>
-              <b>{detail.delivery.receiver.behaviour.replaceAll("_", " ")}</b>
+              <span>SCENARIO</span>
+              <b>{scenarioLabel(detail.delivery.receiver)}</b>
             </div>
             <div>
               <span>ATTEMPTS</span>
@@ -146,8 +147,8 @@ export default function DeliveryView() {
               <b>{detail.event.event_type}</b>
             </div>
             <div>
-              <span>DELIVERY MODEL</span>
-              <b>At-least-once attempts</b>
+              <span>PROCESSING</span>
+              <b>Runs in the background</b>
             </div>
           </div>
           {detail.delivery.replay_parent_id && (
@@ -168,8 +169,8 @@ export default function DeliveryView() {
               </div>
               <div className="timeline-origin">
                 <span className="timeline-dot" />
-                <b>Event persisted</b>
-                <p>Delivery intent committed in the same transaction.</p>
+                <b>Event saved</b>
+                <p>The event is stored before delivery begins.</p>
               </div>
               {detail.attempts.map((a) => (
                 <article
@@ -194,22 +195,14 @@ export default function DeliveryView() {
                                 : "Connection failed"}
                     </span>
                   </div>
-                  <p>
-                    {a.outcome === "interrupted"
-                      ? "The worker was interrupted. The receiver may have processed this request."
-                      : a.outcome === "succeeded"
-                        ? "The receiver accepted the signed event."
-                        : a.outcome === "started"
-                          ? "A signed request is on its way to the receiver."
-                          : `Delivery failed${a.duration_ms !== null ? ` after ${a.duration_ms} ms` : ""}.`}
-                  </p>
+                  <p>{attemptExplanation(a)}</p>
                   <small>
                     {new Date(a.started_at).toLocaleTimeString()}{" "}
                     {a.duration_ms !== null && `· ${a.duration_ms} ms`}
                   </small>
                   {a.response_excerpt && (
                     <details>
-                      <summary>Receiver response</summary>
+                      <summary>View service response</summary>
                       <pre>{a.response_excerpt}</pre>
                     </details>
                   )}
@@ -220,11 +213,12 @@ export default function DeliveryView() {
                   <span className="pulse-dot" />
                   <b>
                     {Date.parse(detail.delivery.next_attempt_at) <= now
-                      ? "Retry is due; waiting for processing"
-                      : `Next attempt in ${Math.ceil((Date.parse(detail.delivery.next_attempt_at) - now) / 1000)} seconds`}
+                      ? "Waiting for the next attempt to start"
+                      : `Trying again in ${Math.ceil((Date.parse(detail.delivery.next_attempt_at) - now) / 1000)} seconds`}
                   </b>
                   <p>
-                    Exponential backoff with jitter. The schedule is persisted.
+                    DispatchLab retries automatically. Delays vary and can grow
+                    after repeated failures.
                   </p>
                 </div>
               )}
@@ -232,11 +226,12 @@ export default function DeliveryView() {
                 <div className="timeline-end">
                   <b>
                     {now - Date.parse(detail.delivery.created_at) > 60000
-                      ? "Queue processing is delayed"
-                      : "Waiting for the queue"}
+                      ? "Delivery is taking longer to start"
+                      : "Waiting to send"}
                   </b>
                   <p>
-                    Accepted events remain durable if processing is delayed.
+                    The event is saved. Background processing will pick it up
+                    when available.
                   </p>
                 </div>
               )}
@@ -244,13 +239,16 @@ export default function DeliveryView() {
                 <div className={`timeline-end final ${detail.delivery.state}`}>
                   <b>
                     {detail.delivery.state === "succeeded"
-                      ? "Delivery complete"
-                      : "Final failure"}
+                      ? "Delivery successful"
+                      : "Delivery stopped"}
                   </b>
                   <p>
                     {detail.delivery.state === "succeeded"
-                      ? "All completed attempts remain available below."
-                      : `Reason: ${detail.delivery.final_reason?.replaceAll("_", " ")}. Replay when you are ready.`}
+                      ? `The receiving service accepted the event on attempt ${detail.delivery.attempt_count}. You can inspect each attempt above.`
+                      : stoppedExplanation(
+                          detail.delivery.final_reason,
+                          detail.delivery.attempt_count,
+                        )}
                   </p>
                 </div>
               )}
@@ -264,45 +262,49 @@ export default function DeliveryView() {
             <aside>
               <div className="payload-panel">
                 <div className="code-heading">
-                  <span>PERSISTED EVENT</span>
+                  <span>SAVED EVENT DATA</span>
                   <span className="code-tag">JSON</span>
                 </div>
                 <pre>{JSON.stringify(detail.event.payload, null, 2)}</pre>
                 <div className="code-foot">
-                  <span className="dot" /> Immutable across retries and replays.
+                  <span className="dot" /> Retries and replays use the same
+                  event data.
                 </div>
               </div>
               <div className="panel replay-panel">
-                <p className="eyebrow">RECOVERY</p>
-                <h3>A new delivery. Same event.</h3>
+                <p className="eyebrow">TRY AGAIN</p>
+                <h3>Replay this event</h3>
                 <p>
-                  Replay keeps this timeline intact and starts a fresh
-                  five-attempt budget.
+                  Replay creates a new delivery of the same event and keeps this
+                  history intact. Repeat the scenario or use a working receiver
+                  that accepts the first attempt.
                 </p>
                 <button
                   className="primary"
                   disabled={busy || !terminal(detail.delivery.state)}
                   onClick={() => replay(true)}
                 >
-                  Replay to success <span>↗</span>
+                  {busy ? "Starting replay…" : "Replay with a working receiver"}{" "}
+                  <span>↗</span>
                 </button>
                 <button
                   className="secondary"
                   disabled={busy || !terminal(detail.delivery.state)}
                   onClick={() => replay(false)}
                 >
-                  Replay original behaviour
+                  Repeat this scenario
                 </button>
                 <p className="fine-print">
-                  Up to two replays per event. Receiver side effects may be
-                  deduplicated by event ID.
+                  {terminal(detail.delivery.state)
+                    ? "Up to 2 replays per event. A service may receive the same event more than once."
+                    : "Replay becomes available when this delivery finishes."}
                 </p>
               </div>
             </aside>
           </div>
           {detail.replays.length > 0 && (
             <div className="panel replay-links">
-              <h3>Linked replays</h3>
+              <h3>Replays of this delivery</h3>
               {detail.replays.map((d) => (
                 <Link key={d.id} href={detailLink(d.id)}>
                   {d.id.slice(0, 8)} → <Status state={d.state} />

@@ -93,7 +93,7 @@ test("unavailable delivery data can be refreshed without a reload", async ({
   unavailable = false;
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect(page.locator(".section-heading .status")).toHaveText(
-    "Succeeded",
+    "Delivery successful",
   );
   await expect(page.locator(".error[role=alert]")).toHaveCount(0);
 });

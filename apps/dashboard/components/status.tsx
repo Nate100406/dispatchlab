@@ -3,8 +3,8 @@ const labels: Record<DeliveryState, string> = {
   pending: "Queued",
   in_progress: "Delivering",
   retry_wait: "Retry scheduled",
-  succeeded: "Succeeded",
-  dead_lettered: "Final failure",
+  succeeded: "Delivery successful",
+  dead_lettered: "Delivery stopped",
 };
 export default function Status({ state }: { state: DeliveryState }) {
   return (

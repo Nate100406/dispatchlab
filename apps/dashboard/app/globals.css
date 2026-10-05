@@ -161,6 +161,15 @@ p {
 .hero h1 span {
   color: #6d8c76;
 }
+.hero h1 {
+  font-size: clamp(42px, 4.5vw, 60px);
+  letter-spacing: -2.5px;
+}
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+}
 .hero-copy {
   max-width: 430px;
   font-size: 16px;
@@ -477,7 +486,7 @@ td {
 }
 .principles {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 34px;
   margin: 75px 0;
   padding-top: 32px;
@@ -492,6 +501,13 @@ td {
 }
 .principles article {
   padding-top: 8px;
+}
+.principles a {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .principles b {
   font-size: 12px;

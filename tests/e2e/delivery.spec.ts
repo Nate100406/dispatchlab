@@ -7,18 +7,22 @@ test("two controlled failures become signed success with visible history", async
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Every event. Every attempt." }),
+    page.getByRole("heading", {
+      name: "See how webhook delivery handles failure.",
+    }),
   ).toBeVisible();
-  await page.getByLabel("Receiver behaviour").selectOption("fail_then_succeed");
+  await page
+    .getByLabel("How should the receiving service respond?")
+    .selectOption("fail_then_succeed");
   await page.getByRole("button", { name: "Send event" }).click();
   await expect(page).toHaveURL(/deliveries\/\?id=/);
   await expect(page.locator(".section-heading .status")).toHaveText(
-    "Succeeded",
+    "Delivery successful",
     { timeout: 45000 },
   );
   await expect(page.getByTestId("attempt")).toHaveCount(3);
   await expect(page.getByText("HTTP 503", { exact: true })).toHaveCount(2);
-  await page.getByText("Receiver response").last().click();
+  await page.getByText("View service response").last().click();
   await expect(page.getByText(/"signatureVerified":true/).last()).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -26,18 +30,22 @@ test("final failure can be replayed to success without rewriting its history", a
   page,
 }) => {
   await page.goto("/");
-  await page.getByLabel("Receiver behaviour").selectOption("always_fail");
+  await page
+    .getByLabel("How should the receiving service respond?")
+    .selectOption("always_fail");
   await page.getByRole("button", { name: "Send event" }).click();
   await expect(page.locator(".section-heading .status")).toHaveText(
-    "Final failure",
+    "Delivery stopped",
     { timeout: 65000 },
   );
   await expect(page.getByTestId("attempt")).toHaveCount(5);
   const original = page.url();
-  await page.getByRole("button", { name: "Replay to success" }).click();
+  await page
+    .getByRole("button", { name: "Replay with a working receiver" })
+    .click();
   await expect.poll(() => page.url()).not.toBe(original);
   await expect(page.locator(".section-heading .status")).toHaveText(
-    "Succeeded",
+    "Delivery successful",
     { timeout: 30000 },
   );
   await expect(page.getByTestId("attempt")).toHaveCount(1);
@@ -46,10 +54,10 @@ test("final failure can be replayed to success without rewriting its history", a
     .click();
   await expect(page.getByTestId("attempt")).toHaveCount(5);
   await expect(page.locator(".section-heading .status")).toHaveText(
-    "Final failure",
+    "Delivery stopped",
   );
   await expect(
-    page.getByRole("heading", { name: "Linked replays" }),
+    page.getByRole("heading", { name: "Replays of this delivery" }),
   ).toBeVisible();
 });
 
@@ -59,11 +67,15 @@ test("success, timeout, and 429 scenarios follow the real delivery policy", asyn
   test.setTimeout(180000);
   for (const behaviour of ["always_succeed", "timeout", "rate_limit"]) {
     await page.goto("/");
-    await page.getByLabel("Receiver behaviour").selectOption(behaviour);
+    await page
+      .getByLabel("How should the receiving service respond?")
+      .selectOption(behaviour);
     await page.getByRole("button", { name: "Send event" }).click();
     await expect(page).toHaveURL(/deliveries\/\?id=/);
     await expect(page.locator(".section-heading .status")).toHaveText(
-      behaviour === "always_succeed" ? "Succeeded" : "Final failure",
+      behaviour === "always_succeed"
+        ? "Delivery successful"
+        : "Delivery stopped",
       { timeout: 75000 },
     );
     const id = new URL(page.url()).searchParams.get("id");
@@ -111,14 +123,16 @@ test("retrying after a lost acceptance response keeps one persisted delivery", a
     }
   });
   await page.goto("/");
-  await page.getByLabel("Receiver behaviour").selectOption("always_succeed");
+  await page
+    .getByLabel("How should the receiving service respond?")
+    .selectOption("always_succeed");
   await page.getByRole("button", { name: "Send event" }).click();
   await expect(page.locator(".error[role=alert]")).toContainText(
     "Could not reach",
   );
   await page.getByRole("button", { name: "Send event" }).click();
   await expect(page.locator(".section-heading .status")).toHaveText(
-    "Succeeded",
+    "Delivery successful",
     { timeout: 30000 },
   );
   expect(acceptedIds).toHaveLength(2);

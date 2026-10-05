@@ -8,10 +8,10 @@ DispatchLab saves the event and delivery intent, sends a signed request in the b
 
 ## Try the delivery flow
 
-1. Send **Order created → Fail, then succeed → 2 failures**. Expect HTTP 503, 503, then success. Expand the successful receiver response to see signature verification.
+1. Send **Order created → Fail temporarily, then recover → 2 failures**. Expect HTTP 503, 503, then success. Expand the successful receiver response to see signature verification.
 2. Reload the detail page. The attempt history comes from PostgreSQL; browser state does not own delivery progress.
-3. Send **Always fail**. After five attempts, replay to success. Inspect the link back to the original delivery: its history remains intact.
-4. Try **Timeout** or **Return 429**. A slow receiver is bounded by a three-second timeout; a 429 requests at least five seconds before the next attempt.
+3. Send **Keep returning an error**. After five attempts, choose **Replay with a working receiver**. Inspect the link back to the original delivery: its history remains intact.
+4. Try **Respond too slowly** or **Busy — try again later (429)**. A slow receiver is bounded by a three-second timeout; a 429 requests at least five seconds before the next attempt.
 5. Open the tests and architectural decisions below. A demo shows behaviour; regression tests establish the important boundaries.
 
 ## What to inspect

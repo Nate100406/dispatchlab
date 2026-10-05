@@ -10,6 +10,7 @@ import {
 } from "@dispatchlab/core";
 import { api, ApiError, detailLink, startSession } from "./api";
 import Status from "./status";
+import { repository, scenarios, scenarioLabel } from "./copy";
 export default function Lab() {
   const router = useRouter();
   const [sample, setSample] = useState<keyof typeof samples>("order");
@@ -90,54 +91,57 @@ export default function Lab() {
     <div className="page">
       <section className="hero">
         <div>
-          <p className="eyebrow">THE WEBHOOK DELIVERY LAB</p>
+          <p className="eyebrow">INTERACTIVE ENGINEERING DEMO</p>
           <h1>
-            Every event.
-            <br />
-            <span>Every attempt.</span>
+            See how webhook delivery <span>handles failure.</span>
           </h1>
           <p className="hero-copy">
-            An order is placed. The shipping service is offline. DispatchLab
-            saves the notification, retries delivery, and records what happened.
-            Try a controlled outage below and watch it recover.
+            Send a sample event, simulate a receiving service going offline, and
+            watch automatic retries. Inspect every attempt, then replay failed
+            deliveries.
           </p>
-          <a className="text-link" href="#experiment">
-            Run your first experiment <span>↘</span>
-          </a>
+          <div className="hero-actions">
+            <a className="text-link" href="#experiment">
+              Try a delivery ↘
+            </a>
+            <a className="text-link" href={repository}>
+              Explore the code and tests ↗
+            </a>
+          </div>
         </div>
         <div
           className="hero-diagram"
-          aria-label="Events are persisted, queued, delivered, and inspected"
+          aria-label="Save the event, send it in the background, then inspect the results"
         >
           <span className="diagram-caption">
-            ONE EVENT. A COMPLETE JOURNEY.
+            WHAT HAPPENS WHEN YOU CLICK SEND
           </span>
           <div className="flow-node">
             <span>01</span>
-            <b>Persist</b>
-            <small>PostgreSQL transaction</small>
+            <b>Save the event</b>
+            <small>Store it before sending</small>
           </div>
           <div className="flow-line" />
           <div className="flow-node">
             <span>02</span>
-            <b>Dispatch</b>
-            <small>Asynchronous queue</small>
+            <b>Send and retry</b>
+            <small>Process delivery in the background</small>
           </div>
           <div className="flow-line" />
           <div className="flow-node">
             <span>03</span>
-            <b>Observe</b>
-            <small>Every attempt recorded</small>
+            <b>Inspect the results</b>
+            <small>See what happened on every attempt</small>
           </div>
           <div className="diagram-foot">
-            ↻ &nbsp; Failure is part of the experiment.
+            Fictional events and services. Real delivery processing.
           </div>
         </div>
       </section>
       <div className="section-heading" id="experiment">
         <div>
-          <p className="eyebrow">01 / EXPERIMENT</p>
-          <h2>Put delivery to the test.</h2>
+          <p className="eyebrow">01 / TRY IT</p>
+          <h2>Choose a scenario</h2>
         </div>
         <span className="muted">Fictional data. Real processing.</span>
       </div>
@@ -145,11 +149,11 @@ export default function Lab() {
         <form className="panel experiment-form" onSubmit={submit}>
           <h3>Send a sample event</h3>
           <p className="muted">
-            A webhook tells another application that something happened. Here,
-            fictional receivers let you test what happens when delivery fails.
-            Your private demo session lasts 24 hours.
+            A webhook is a message that tells another application something
+            happened. Choose an example and decide how the test service
+            responds.
           </p>
-          <label htmlFor="sample">Event</label>
+          <label htmlFor="sample">Sample event</label>
           <select
             id="sample"
             value={sample}
@@ -159,7 +163,9 @@ export default function Lab() {
             <option value="shipment">Shipment dispatched</option>
             <option value="invoice">Invoice paid</option>
           </select>
-          <label htmlFor="receiver">Receiver behaviour</label>
+          <label htmlFor="receiver">
+            How should the receiving service respond?
+          </label>
           <select
             id="receiver"
             value={behaviour}
@@ -167,11 +173,11 @@ export default function Lab() {
               setBehaviour(e.target.value as Receiver["behaviour"])
             }
           >
-            <option value="always_succeed">Always succeed</option>
-            <option value="fail_then_succeed">Fail, then succeed</option>
-            <option value="always_fail">Always fail</option>
-            <option value="timeout">Timeout</option>
-            <option value="rate_limit">Return 429</option>
+            {Object.entries(scenarios).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
           {behaviour === "fail_then_succeed" && (
             <>
@@ -192,16 +198,19 @@ export default function Lab() {
               </div>
             </>
           )}
-          <div className="scenario-note">
+          <div className="scenario-note" aria-live="polite">
+            <strong>What to expect: </strong>
             {behaviour === "fail_then_succeed"
-              ? `The receiver will return 503 ${failures} time${failures === 1 ? "" : "s"}, then accept the event.`
+              ? failures === 0
+                ? "The service should accept the event on the first attempt."
+                : `The service will reject the first ${failures === 1 ? "attempt" : `${failures} attempts`}. DispatchLab should retry automatically and succeed on attempt ${failures + 1}.`
               : behaviour === "always_succeed"
-                ? "The receiver accepts the very first attempt."
+                ? "The service should accept the event on the first attempt."
                 : behaviour === "timeout"
-                  ? "The receiver takes too long. Each attempt times out after 3 seconds."
+                  ? "Each attempt stops after 3 seconds without a response. DispatchLab should retry, then stop after 5 attempts."
                   : behaviour === "rate_limit"
-                    ? "The receiver returns 429 and requests a 5-second delay."
-                    : "The receiver returns 503 until the five-attempt budget is exhausted."}
+                    ? "The service returns HTTP 429. DispatchLab should wait at least 5 seconds between attempts, then stop after 5 attempts."
+                    : "The service rejects every attempt with HTTP 503. DispatchLab should retry, then stop after 5 attempts."}
           </div>
           {error && (
             <p role="alert" className="error">
@@ -209,16 +218,18 @@ export default function Lab() {
             </p>
           )}
           <button type="submit" className="primary" disabled={busy}>
-            {busy ? "Persisting event…" : "Send event"}
+            {busy ? "Saving event…" : "Send event"}
             <span>↗</span>
           </button>
           <p className="fine-print">
-            Up to 10 deliveries per session. Controlled receivers only.
+            No account needed. Up to 10 deliveries per session. Demo data is
+            kept for 24 hours. All receiving services are controlled test
+            services.
           </p>
         </form>
         <div className="payload-panel">
           <div className="code-heading">
-            <span>PAYLOAD PREVIEW</span>
+            <span>EVENT DATA</span>
             <span className="code-tag">application/json</span>
           </div>
           <pre>
@@ -232,8 +243,8 @@ export default function Lab() {
             )}
           </pre>
           <div className="code-foot">
-            <span className="dot" /> This exact event is persisted before
-            delivery begins.
+            <span className="dot" /> This is the sample data DispatchLab will
+            save and send.
           </div>
         </div>
       </section>
@@ -241,7 +252,7 @@ export default function Lab() {
         <div className="section-heading">
           <div>
             <p className="eyebrow">02 / ACTIVITY</p>
-            <h2>Your deliveries</h2>
+            <h2>Deliveries in this session</h2>
           </div>
           <label className="filter-label">
             Status
@@ -251,8 +262,8 @@ export default function Lab() {
               onChange={(e) => setFilter(e.target.value)}
             >
               <option value="">All statuses</option>
-              <option value="succeeded">Succeeded</option>
-              <option value="dead_lettered">Final failure</option>
+              <option value="succeeded">Delivery successful</option>
+              <option value="dead_lettered">Delivery stopped</option>
               <option value="retry_wait">Retry scheduled</option>
               <option value="pending">Queued</option>
               <option value="in_progress">Delivering</option>
@@ -270,7 +281,7 @@ export default function Lab() {
               <thead>
                 <tr>
                   <th>Delivery</th>
-                  <th>Receiver</th>
+                  <th>Scenario</th>
                   <th>Attempts</th>
                   <th>Status</th>
                   <th>Created</th>
@@ -287,7 +298,7 @@ export default function Lab() {
                         <small className="replay-label">Replay</small>
                       )}
                     </td>
-                    <td>{d.receiver.behaviour.replaceAll("_", " ")}</td>
+                    <td>{scenarioLabel(d.receiver)}</td>
                     <td>{d.attempt_count} / 5</td>
                     <td>
                       <Status state={d.state} />
@@ -301,15 +312,11 @@ export default function Lab() {
         ) : (
           <div className="empty-state">
             <span>↗</span>
-            <h3>
-              {filter
-                ? "No matching deliveries."
-                : "Your first event starts here."}
-            </h3>
+            <h3>{filter ? "No matching deliveries." : "No deliveries yet."}</h3>
             <p>
               {filter
                 ? "Choose another status to see your history."
-                : "Send a sample event above to see its journey, one attempt at a time."}
+                : "Choose a scenario above and click Send event. Select a delivery here to see its results."}
             </p>
           </div>
         )}
@@ -321,33 +328,62 @@ export default function Lab() {
       </section>
       <section id="how-it-works" className="principles">
         <div>
-          <p className="eyebrow">DESIGNED FOR THE UNHAPPY PATH</p>
-          <h2>
-            Small system.
-            <br />
-            Clear guarantees.
-          </h2>
+          <p className="eyebrow">03 / EXPLORE THE IMPLEMENTATION</p>
+          <h2>What this demo demonstrates</h2>
         </div>
         <article>
-          <b>Durable before accepted</b>
+          <b>Durable storage</b>
           <p>
-            Events and delivery intent commit together. Queue publication can
-            recover independently.
+            The event and its delivery plan are saved together in PostgreSQL
+            before the request is accepted.
           </p>
+          <a
+            href={`${repository}/blob/main/docs/architecture.md#model-and-invariants`}
+          >
+            See the database design ↗
+          </a>
         </article>
         <article>
-          <b>Bounded, visible retries</b>
+          <b>Background processing</b>
           <p>
-            Five attempts, exponential backoff, and an immutable record of
-            completed attempts.
+            A queue handles delivery after submission. Closing this page does
+            not cancel the delivery.
           </p>
+          <a href={`${repository}/blob/main/docs/architecture.md#decisions`}>
+            See how processing works ↗
+          </a>
         </article>
         <article>
-          <b>History stays intact</b>
+          <b>Retries with a limit</b>
           <p>
-            Replay creates a linked delivery. Duplicate receipt is possible;
-            exactly-once delivery is not promised.
+            Temporary failures are retried with a delay, up to 5 attempts. Every
+            result is recorded.
           </p>
+          <a href={`${repository}/blob/main/tests/e2e/delivery.spec.ts`}>
+            Explore the delivery tests ↗
+          </a>
+        </article>
+        <article>
+          <b>Signed requests</b>
+          <p>
+            The receiving service checks a signature to verify who sent the
+            event and that it has not changed.
+          </p>
+          <a
+            href={`${repository}/blob/main/docs/architecture.md#hmac-contract`}
+          >
+            Read about request signing ↗
+          </a>
+        </article>
+        <article>
+          <b>Recovery with history</b>
+          <p>
+            Replay starts a new delivery while keeping the original history. A
+            service may receive the same event more than once.
+          </p>
+          <a href={`${repository}/blob/main/tests/integration/system.test.ts`}>
+            Explore the recovery tests ↗
+          </a>
         </article>
       </section>
     </div>

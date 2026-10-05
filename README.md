@@ -24,7 +24,7 @@ npm run build
 npm run serve
 ```
 
-Open **http://localhost:8787**. Choose “Fail, then succeed” with two failures, then Send event. The timeline should show 503, 503, and 200. Try Always fail, then Replay to success to inspect preserved history.
+Open **http://localhost:8787**. Choose “Fail temporarily, then recover” with two failures, then Send event. The timeline should show 503, 503, and 200. Try Keep returning an error, then Replay with a working receiver to inspect preserved history.
 
 For hot-reload development, use `npm run dev` instead of `npm run serve` and open **http://localhost:3000**. Its local reverse proxy keeps API calls on the same origin. Build once before first use because Wrangler serves the static export too.
 

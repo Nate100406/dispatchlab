@@ -17,8 +17,8 @@ Public launch is a separate operation: provision free resources, set matching si
 
 ## Verification record
 
-The local release check passes: 30 unit tests, 25 real PostgreSQL integration tests, and both complete browser journeys (57 tests total), plus formatting, lint, TypeScript, static export, and both Worker bundles. A 390-pixel viewport has no horizontal overflow or browser exceptions. The local application uses the restricted PostgreSQL runtime role.
+The October 5, 2026 audit passes: 30 unit tests, 27 real PostgreSQL integration tests, and eight browser tests (65 total), plus formatting, lint, TypeScript, static export, and both Worker bundles. Four browser tests exercise real delivery paths; four isolate browser faults and asset headers. A 390-pixel viewport has no horizontal overflow or browser exceptions. The local application uses the restricted PostgreSQL runtime role.
 
-GitHub Actions also passed these checks on a fresh Ubuntu checkout. The development proxy was separately verified with a real signed delivery and an active Next.js hot-reload WebSocket.
+GitHub Actions previously passed the original release checks on a fresh Ubuntu checkout. Audit changes must also pass CI before release. The development proxy was separately verified with a real signed delivery and an active Next.js hot-reload WebSocket.
 
 Cloud hosting is prepared but remains unverified until the free resources and production secrets are configured and the hosted smoke gate is run. No paid resources were provisioned.

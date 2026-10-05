@@ -324,6 +324,57 @@ describe("claims, retries, and recovery", () => {
       (await db.detail(owner, a.deliveryId)).attempts.map((v) => v.outcome),
     ).toEqual(["interrupted", "succeeded"]);
   });
+  it("rejects finalisation when a lease expires while waiting for a row lock", async () => {
+    const owner = await session();
+    const a = await event(owner);
+    const active = await claim(a.deliveryId);
+    await db.connect((c) =>
+      c.query(
+        "UPDATE deliveries SET lease_until=clock_timestamp()+interval '2 seconds' WHERE id=$1",
+        [a.deliveryId],
+      ),
+    );
+    let finishing: Promise<boolean> | undefined;
+    await db.connect(async (locker) => {
+      await locker.query("BEGIN");
+      try {
+        const locked = (
+          await locker.query(
+            "SELECT lease_until,pg_backend_pid() AS pid FROM deliveries WHERE id=$1 FOR UPDATE",
+            [a.deliveryId],
+          )
+        ).rows[0];
+        finishing = db.finish(active, success);
+        await expect
+          .poll(
+            async () =>
+              (
+                await db.connect((c) =>
+                  c.query(
+                    "SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid))",
+                    [locked.pid],
+                  ),
+                )
+              ).rowCount,
+          )
+          .toBe(1);
+        await locker.query(
+          "SELECT pg_sleep(GREATEST(0,EXTRACT(EPOCH FROM ($1::timestamptz-clock_timestamp())))+0.05)",
+          [locked.lease_until],
+        );
+      } finally {
+        await locker.query("ROLLBACK");
+      }
+    });
+    expect(await finishing).toBe(false);
+    expect((await db.detail(owner, a.deliveryId)).attempts[0].outcome).toBe(
+      "started",
+    );
+    await db.recover();
+    expect((await db.detail(owner, a.deliveryId)).attempts[0].outcome).toBe(
+      "interrupted",
+    );
+  });
   it("preserves an unknown outcome after receiver acceptance and permits duplicate receipt", async () => {
     const owner = await session();
     const a = await event(owner);
@@ -512,6 +563,28 @@ describe("claims, retries, and recovery", () => {
 });
 
 describe("replay", () => {
+  it("bounds repeated worker interruptions to five total attempts", async () => {
+    const owner = await session();
+    const a = await event(owner);
+    for (let generation = 1; generation <= 5; generation++) {
+      await due(a.deliveryId);
+      await claim(a.deliveryId, generation);
+      await expired(a.deliveryId);
+      await db.recover();
+    }
+    const record = await db.detail(owner, a.deliveryId);
+    expect(record.delivery).toMatchObject({
+      state: "dead_lettered",
+      attempt_count: 5,
+      final_reason: "attempts_exhausted",
+    });
+    expect(record.attempts.map((a) => a.outcome)).toEqual(
+      Array(5).fill("interrupted"),
+    );
+    expect(await db.claim({ deliveryId: a.deliveryId, generation: 5 })).toEqual(
+      { kind: "skip" },
+    );
+  });
   it("preserves original history, deduplicates replay, and limits the whole chain", async () => {
     const owner = await session();
     const a = await event(owner);

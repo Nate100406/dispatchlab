@@ -1,6 +1,12 @@
 # DispatchLab
 
+[![CI](https://github.com/Nate100406/dispatchlab/actions/workflows/ci.yml/badge.svg)](https://github.com/Nate100406/dispatchlab/actions/workflows/ci.yml)
+
 A small webhook delivery and replay system built to make failure visible.
+
+Imagine an online shop notifying a shipping service that an order was placed. If the shipping service is offline, DispatchLab saves the notification, retries it, and shows every result. The demo uses fictional receivers to make those outages repeatable.
+
+**Reviewing the project?** Follow the [five-minute walkthrough and engineering evidence](docs/reviewer-walkthrough.md).
 
 ![DispatchLab dashboard](docs/dashboard.png)
 
@@ -70,13 +76,14 @@ Both delivery-creating POSTs require an Idempotency-Key. POSTs require same-orig
 - An interrupted attempt has an **unknown outcome**. No exactly-once or ordering guarantee.
 - Replay preserves event ID/payload and old history; it creates a new delivery. Receiver business deduplication should use event ID.
 - Hosted retention is 24 hours. Budget: 50 deliveries/day, 200 new sessions/day, 10 deliveries/session, two replays/event. Provider quotas can temporarily make the demo unavailable.
-- Lost-notification recovery can take up to 30 minutes under healthy infrastructure. Normal retries publish immediately.
+- Recovery runs every 30 minutes in bounded batches. Backlogs or infrastructure outages can require additional sweeps. Normal retries publish immediately.
 
 ## Engineering evidence
 
 - [Architecture and decisions](docs/architecture.md): schema, transactions, state machine, signing, tradeoffs and exclusions.
 - [Implementation phases](docs/implementation-plan.md): deliverables and gates.
 - [Runbook](docs/runbook.md): provisioning, least privilege, deployment and recovery.
+- [Reliability audit](docs/audit-2026-10-05.md): reproduced defects, fixes, regression evidence and remaining cloud checks.
 - `packages/db/migrations`: schema constraints, immutable history and incremental migration.
 - `tests/integration/system.test.ts`: races, partial failures and durable recovery.
 - `tests/e2e/delivery.spec.ts`: a complete failure/recovery story.

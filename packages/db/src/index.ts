@@ -432,11 +432,20 @@ export class Database {
     return this.transaction(async (c) => {
       const d = (
         await c.query<DeliveryRow>(
-          "SELECT * FROM deliveries WHERE id=$1 AND lease_token=$2 AND lease_until>clock_timestamp() FOR UPDATE",
+          "SELECT * FROM deliveries WHERE id=$1 AND lease_token=$2 FOR UPDATE",
           [claim.delivery.id, claim.token],
         )
       ).rows[0];
       if (!d) return false;
+      // WHERE predicates can run before a blocking row lock is acquired.
+      // Check the live database clock again only after we own that lock.
+      const valid = (
+        await c.query<{ valid: boolean }>(
+          "SELECT $1::timestamptz>clock_timestamp() AS valid",
+          [d.lease_until],
+        )
+      ).rows[0].valid;
+      if (!valid) return false;
       const success =
         result.status !== null && result.status >= 200 && result.status < 300;
       await c.query(

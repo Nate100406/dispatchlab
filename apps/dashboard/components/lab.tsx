@@ -97,8 +97,9 @@ export default function Lab() {
             <span>Every attempt.</span>
           </h1>
           <p className="hero-copy">
-            Send an event into the wild. Watch it fail, retry, and find its way
-            home. A small lab for the parts of delivery that matter.
+            An order is placed. The shipping service is offline. DispatchLab
+            saves the notification, retries delivery, and records what happened.
+            Try a controlled outage below and watch it recover.
           </p>
           <a className="text-link" href="#experiment">
             Run your first experiment <span>↘</span>
@@ -144,7 +145,9 @@ export default function Lab() {
         <form className="panel experiment-form" onSubmit={submit}>
           <h3>Send a sample event</h3>
           <p className="muted">
-            No account needed. Your session is private and lasts 24 hours.
+            A webhook tells another application that something happened. Here,
+            fictional receivers let you test what happens when delivery fails.
+            Your private demo session lasts 24 hours.
           </p>
           <label htmlFor="sample">Event</label>
           <select

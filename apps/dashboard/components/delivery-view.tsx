@@ -18,37 +18,40 @@ export default function DeliveryView() {
     key: string;
   } | null>(null);
   const pollStart = useRef(0);
+  const inFlight = useRef<{ id: string; controller: AbortController } | null>(
+    null,
+  );
   const polling = !!detail && !terminal(detail.delivery.state);
   const refresh = useCallback(async () => {
-    if (!id) return;
+    if (!id || inFlight.current?.id === id) return;
+    inFlight.current?.controller.abort();
+    const request = { id, controller: new AbortController() };
+    inFlight.current = request;
     try {
-      const data = await api<Detail>(`/deliveries/${encodeURIComponent(id)}`);
-      setDetail(data);
-      setError("");
+      const data = await api<Detail>(`/deliveries/${encodeURIComponent(id)}`, {
+        signal: request.controller.signal,
+      });
+      if (!request.controller.signal.aborted) {
+        setDetail(data);
+        setError("");
+      }
     } catch (e) {
-      setError((e as Error).message);
+      if (!request.controller.signal.aborted) setError((e as Error).message);
+    } finally {
+      if (inFlight.current === request) inFlight.current = null;
     }
   }, [id]);
   useEffect(() => {
-    let cancelled = false;
     pollStart.current = Date.now();
     setDetail(null);
+    setError("");
     setPaused(false);
-    if (id)
-      api<Detail>(`/deliveries/${encodeURIComponent(id)}`)
-        .then((d) => {
-          if (!cancelled) {
-            setDetail(d);
-            setError("");
-          }
-        })
-        .catch((e) => {
-          if (!cancelled) setError(e.message);
-        });
+    void refresh();
     return () => {
-      cancelled = true;
+      inFlight.current?.controller.abort();
+      inFlight.current = null;
     };
-  }, [id]);
+  }, [id, refresh]);
   useEffect(() => {
     if (!id || !polling || paused) return;
     let refreshing = false;
@@ -216,15 +219,9 @@ export default function DeliveryView() {
                 <div className="timeline-end">
                   <span className="pulse-dot" />
                   <b>
-                    Next attempt in{" "}
-                    {Math.max(
-                      0,
-                      Math.ceil(
-                        (Date.parse(detail.delivery.next_attempt_at) - now) /
-                          1000,
-                      ),
-                    )}{" "}
-                    seconds
+                    {Date.parse(detail.delivery.next_attempt_at) <= now
+                      ? "Retry is due; waiting for processing"
+                      : `Next attempt in ${Math.ceil((Date.parse(detail.delivery.next_attempt_at) - now) / 1000)} seconds`}
                   </b>
                   <p>
                     Exponential backoff with jitter. The schedule is persisted.
@@ -233,7 +230,11 @@ export default function DeliveryView() {
               )}
               {detail.delivery.state === "pending" && (
                 <div className="timeline-end">
-                  <b>Waiting for the queue</b>
+                  <b>
+                    {now - Date.parse(detail.delivery.created_at) > 60000
+                      ? "Queue processing is delayed"
+                      : "Waiting for the queue"}
+                  </b>
                   <p>
                     Accepted events remain durable if processing is delayed.
                   </p>

@@ -17,7 +17,9 @@ export async function api<T>(
     const r = await fetch(`/api${path}`, {
       ...options,
       headers: { "Content-Type": "application/json", ...options.headers },
-      signal: controller.signal,
+      signal: options.signal
+        ? AbortSignal.any([controller.signal, options.signal])
+        : controller.signal,
     });
     const data = await r.json();
     if (!r.ok)

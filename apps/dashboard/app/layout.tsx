@@ -26,7 +26,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <footer>
           <span>DispatchLab / v1</span>
           <span>Persisted events. Visible failures. Recoverable delivery.</span>
-          <span>Built with TypeScript + PostgreSQL</span>
+          <a href="https://github.com/Nate100406/dispatchlab">
+            Source, tests & architecture ↗
+          </a>
         </footer>
       </body>
     </html>

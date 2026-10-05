@@ -46,8 +46,15 @@ export type Publication = DeliveryMessage & {
 };
 const wire = <T>(value: unknown): T => JSON.parse(JSON.stringify(value)) as T;
 export class Database {
-  constructor(public readonly url: string) {}
+  constructor(
+    public readonly url: string,
+    private readonly client?: Client,
+  ) {}
+  async withConnection<T>(fn: (db: Database) => Promise<T>): Promise<T> {
+    return this.connect((client) => fn(new Database(this.url, client)));
+  }
   async connect<T>(fn: (client: Client) => Promise<T>): Promise<T> {
+    if (this.client) return fn(this.client);
     const client = new pg.Client({
       connectionString: this.url,
       connectionTimeoutMillis: 5000,
@@ -270,40 +277,34 @@ export class Database {
     );
   }
   async detail(sessionId: string, id: string): Promise<Detail> {
-    return this.transaction(async (c) => {
-      // A coherent timeline even if an attempt completes between reads.
-      await c.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
-      const d = (
-        await c.query<DeliveryRow>(
-          "SELECT d.* FROM deliveries d JOIN events e ON e.id=d.event_id WHERE d.id=$1 AND e.session_id=$2",
+    return this.connect(async (c) => {
+      // One statement gives all timeline data the same PostgreSQL snapshot.
+      const detail = (
+        await c.query<{ detail: Detail }>(
+          `SELECT jsonb_build_object(
+            'delivery', to_jsonb(d)-'lease_token'-'lease_until',
+            'event', to_jsonb(e)-'session_id',
+            'attempts', COALESCE((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.attempt_number) FROM delivery_attempts a WHERE a.delivery_id=d.id), '[]'::jsonb),
+            'replays', COALESCE((SELECT jsonb_agg(to_jsonb(r)-'lease_token'-'lease_until' ORDER BY r.created_at,r.id) FROM deliveries r WHERE r.replay_parent_id=d.id), '[]'::jsonb)
+          ) AS detail FROM deliveries d JOIN events e ON e.id=d.event_id WHERE d.id=$1 AND e.session_id=$2`,
           [id, sessionId],
         )
-      ).rows[0];
-      if (!d) throw new AppError(404, "not_found", "Delivery not found.");
-      const event = (
-        await c.query(
-          "SELECT id,event_type,payload,created_at FROM events WHERE id=$1",
-          [d.event_id],
-        )
-      ).rows[0];
-      const attempts = (
-        await c.query(
-          "SELECT * FROM delivery_attempts WHERE delivery_id=$1 ORDER BY attempt_number",
-          [id],
-        )
-      ).rows;
-      const replays = (
-        await c.query(
-          "SELECT * FROM deliveries WHERE replay_parent_id=$1 ORDER BY created_at,id",
-          [id],
-        )
-      ).rows;
-      return wire<Detail>({
-        delivery: publicDelivery(d),
-        event,
-        attempts,
-        replays: replays.map(publicDelivery),
-      });
+      ).rows[0]?.detail;
+      if (!detail) throw new AppError(404, "not_found", "Delivery not found.");
+      // Keep the existing ISO UTC wire format when dates come from JSONB.
+      for (const d of [detail.delivery, ...detail.replays]) {
+        d.created_at = new Date(d.created_at).toISOString();
+        d.next_attempt_at = new Date(d.next_attempt_at).toISOString();
+        if (d.completed_at)
+          d.completed_at = new Date(d.completed_at).toISOString();
+      }
+      detail.event.created_at = new Date(detail.event.created_at).toISOString();
+      for (const a of detail.attempts) {
+        a.started_at = new Date(a.started_at).toISOString();
+        if (a.finished_at)
+          a.finished_at = new Date(a.finished_at).toISOString();
+      }
+      return detail;
     });
   }
   async list(

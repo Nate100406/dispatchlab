@@ -12,6 +12,12 @@ Explore the delivery flow and its guarantees in the [five-minute walkthrough](do
 
 Submit a fictional event, watch controlled failures and signed retries, inspect every attempt, and replay without rewriting history. TypeScript, Next.js, PostgreSQL, Cloudflare Workers and one queue. No paid API, cloud account, or subscription is needed to run it locally.
 
+## Try the live demo
+
+Open **[DispatchLab](https://dispatchlab.nate-26e.workers.dev)**. No account is needed. Choose a scenario, send a fictional event, inspect the timeline, and replay a failed delivery.
+
+The demo runs on Cloudflare Workers Free, its included Queue and Hyperdrive pool, and Neon Free. It admits 50 deliveries globally per UTC day and 10 per visitor session; data is retained for 24 hours. Free-provider limits can pause availability. See the [hosted setup and verification](docs/hosted-demo.md).
+
 ## Try it locally
 
 Requires Node.js 22.17+ (22 LTS), npm, Docker, and Docker Compose. Port 55439 is reserved for this project's database; 8787 for Workers; 3000/3001 for dashboard development.
@@ -88,4 +94,4 @@ Both delivery-creating POSTs require an Idempotency-Key. POSTs require same-orig
 - `tests/integration/system.test.ts`: races, partial failures and durable recovery.
 - `tests/e2e/delivery.spec.ts`: a complete failure/recovery story.
 
-MIT licensed. Hosted cloud provisioning and smoke verification are separate from local verification; no hosted deployment is implied by this repository.
+MIT licensed. Local regression tests and the hosted smoke gate are recorded separately in the [hosted verification report](docs/hosted-demo.md).

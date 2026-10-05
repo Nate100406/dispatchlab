@@ -7,8 +7,9 @@
 3. Create one Cloudflare Queue: `npx wrangler queues create dispatchlab-deliveries`. Stay on Workers Free. Free queue retention is 24 hours; verify current allowances before launch.
 4. Generate a signing secret (at least 32 random bytes). Set SIGNING_SECRET with `wrangler secret put` on **both** Workers using their respective configs. Set DATABASE_URL only on the DispatchLab Worker to the pooled runtime connection. Never use local examples in production.
 5. Apply migrations using the owner's direct URL (`DATABASE_URL=… npm run db:migrate`). Grant runtime access after migrations using owner SQL. Production credentials never enter `.dev.vars`, source, logs, or screenshots.
-6. Deploy the receiver first, then DispatchLab. The receiver config disables workers.dev and preview URLs and has no routes; audit the account for any manually added receiver domains/routes and remove them. MODE defaults to hosted; local `.dev.vars` is not deployed. Use the main Worker's free workers.dev URL.
-7. The manual GitHub deploy workflow requires a successful CI run for its exact commit, Cloudflare account/token secrets and MIGRATION_DATABASE_URL. Worker runtime/signing secrets must already exist in Cloudflare. Configure the production environment review rules as desired.
+6. Create a Hyperdrive configuration using the restricted runtime role and the direct Neon endpoint. Disable query caching, cap origin connections at five, and use TLS with certificate validation. Hyperdrive's `require` mode validates certificates using WebPKI; custom CA modes need the appropriate uploaded certificate. Bind its ID as HYPERDRIVE in the Worker config. Hyperdrive is included on Workers Free; do not upgrade the plan. Forks must provision their own pool and replace this repository's deployment ID. Local mode uses DATABASE_URL and the local-only example connection.
+7. Deploy the receiver first, then DispatchLab. The receiver config disables workers.dev and preview URLs and has no routes; audit the account for any manually added receiver domains/routes and remove them. MODE defaults to hosted; local `.dev.vars` is not deployed. Use the main Worker's free workers.dev URL.
+8. The manual GitHub deploy workflow requires a successful CI run for its exact commit and encrypted production-environment secrets: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN and MIGRATION_DATABASE_URL. Scope the Cloudflare token to this account's Workers Scripts: Edit and Queues: Edit; the migration URL is the separate database owner connection, never the runtime role. Worker runtime/signing secrets must already exist in Cloudflare. The repository's production environment accepts main only. Creating the GitHub release connection requires account-owner authorization; a live CLI deployment does not imply that the GitHub release secrets are configured.
 
 Example owner grants (after migrations):
 
@@ -21,7 +22,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
 TO dispatchlab_runtime;
 ```
 
-Use TLS for Neon connections; do not disable certificate verification. Runtime drivers open invocation-scoped connections and close them. Migrations use a direct connection because their advisory lock is session-scoped.
+Use TLS for Neon connections; do not disable certificate verification. Runtime drivers open invocation-scoped connections to the Hyperdrive proxy and close them; Cloudflare manages encrypted, certificate-validated origin connections. Keep caching disabled so session authorization and timeline reads stay fresh. Migrations use a direct connection because their advisory lock is session-scoped.
 
 ## Hosted smoke gate
 

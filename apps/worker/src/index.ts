@@ -1,6 +1,7 @@
 import { log, messageSchema, type DeliveryMessage } from "@dispatchlab/core";
 import { Database } from "@dispatchlab/db";
 import { api } from "./api";
+import { databaseUrl } from "./database";
 import {
   processDelivery,
   publish,
@@ -9,6 +10,7 @@ import {
 } from "./delivery";
 export interface Env {
   DATABASE_URL: string;
+  HYPERDRIVE?: { connectionString: string };
   SIGNING_SECRET: string;
   MODE: "local" | "hosted";
   DEMO_PAUSED: string;
@@ -37,7 +39,7 @@ export default {
     return new Response(asset.body, { status: asset.status, headers });
   },
   async queue(batch: MessageBatch<DeliveryMessage>, env: Env) {
-    const db = new Database(env.DATABASE_URL);
+    const db = new Database(databaseUrl(env));
     for (const message of batch.messages) {
       const parsed = messageSchema.safeParse(message.body);
       if (!parsed.success) {
@@ -66,7 +68,7 @@ export default {
     }
   },
   async scheduled(_controller: ScheduledController, env: Env) {
-    const db = new Database(env.DATABASE_URL);
+    const db = new Database(databaseUrl(env));
     try {
       log("recovery_completed", { count: await db.recover() });
       for (let i = 0; i < 20; i++) {

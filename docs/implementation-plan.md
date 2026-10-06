@@ -21,4 +21,4 @@ The October 5, 2026 audit passes: 30 unit tests, 27 real PostgreSQL integration 
 
 GitHub Actions previously passed the original release checks on a fresh Ubuntu checkout. Audit changes must also pass CI before release. The development proxy was separately verified with a real signed delivery and an active Next.js hot-reload WebSocket.
 
-Cloud hosting is prepared but remains unverified until the free resources and production secrets are configured and the hosted smoke gate is run. No paid resources were provisioned.
+The free hosted demo was subsequently provisioned and checked on October 5, 2026. The [hosted verification report](hosted-demo.md) records the separate smoke gate, security checks and measured runtime constraints. No paid resources were provisioned. Free-provider limits and application quotas can temporarily pause demo availability.

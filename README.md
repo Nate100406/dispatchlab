@@ -4,6 +4,8 @@
 
 A small webhook delivery and replay system built to make failure visible.
 
+A public engineering project by [Nate Colby](https://github.com/Nate100406). Commercial client work is documented separately in the [travel availability case study](https://github.com/Nate100406/travel-availability-case-study).
+
 Imagine an online shop notifying a shipping service that an order was placed. If the shipping service is offline, DispatchLab saves the notification, retries it, and shows every result. The demo uses fictional receivers to make those outages repeatable.
 
 Explore the delivery flow and its guarantees in the [five-minute walkthrough](docs/reviewer-walkthrough.md).
